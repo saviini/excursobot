@@ -4,23 +4,20 @@ FROM node:18-alpine
 # Устанавливаем рабочую директорию
 WORKDIR /app
 
-# Копируем файлы зависимостей
-COPY package*.json ./
+# Копируем все файлы проекта
+COPY . .
 
 # Устанавливаем зависимости
-RUN npm ci --only=production
-
-# Копируем исходный код
-COPY src/ ./src/
-
-# Копируем конфигурационные файлы
-COPY tsconfig.json ./
+RUN npm install
 
 # Собираем TypeScript в JavaScript
 RUN npm run build
 
 # Удаляем исходный код и dev-зависимости
-RUN rm -rf src/ tsconfig.json
+RUN rm -rf src/ tsconfig.json node_modules
+
+# Устанавливаем только production зависимости
+RUN npm install --only=production
 
 # Создаем пользователя для безопасности
 RUN addgroup -g 1001 -S nodejs
