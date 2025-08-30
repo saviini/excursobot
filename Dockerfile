@@ -3,18 +3,20 @@ FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Копируем package.json и package-lock.json отдельно (чтобы кэшировалось)
+# Копируем package.json и package-lock.json отдельно для кэширования
 COPY package*.json ./
 
-# Устанавливаем все зависимости (включая dev-зависимости, чтобы был tsc)
+# Устанавливаем все зависимости (dev + prod) для сборки
 RUN npm install
 
-# Копируем исходный код
+# Копируем весь исходный код
 COPY . .
+
+# Проверяем, что src/ существует (отладка)
+RUN ls -la src/
 
 # Собираем TypeScript в dist/
 RUN npm run build
-
 
 # ---------- Stage 2: Runtime ----------
 FROM node:18-alpine AS runner
@@ -30,7 +32,7 @@ RUN npm install --only=production
 # Копируем собранный JS-код из builder
 COPY --from=builder /app/dist ./dist
 
-# Открываем порт (если твой app слушает на 3000)
+# Открываем порт
 EXPOSE 3000
 
 # Запуск приложения
