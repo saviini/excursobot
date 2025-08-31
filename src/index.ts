@@ -1,5 +1,5 @@
 import dotenv from 'dotenv';
-import { BotApp } from './bot/app';
+import { BotApp } from './bot/app.js';
 import { Logger } from './lib/logger';
 
 // Загружаем переменные окружения
