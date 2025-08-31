@@ -1,6 +1,6 @@
 import dotenv from 'dotenv';
-import { BotApp } from './bot/app.js';
-import { Logger } from './lib/logger.js';
+import { createBot } from "./bot/app";
+import { logger } from "./lib/logger";
 
 // Загружаем переменные окружения
 dotenv.config();
