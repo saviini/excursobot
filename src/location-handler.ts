@@ -1,7 +1,7 @@
 import { Context, InlineKeyboard } from 'grammy';
-import { OpenAIClient, LocationFact } from '../services/openai-client.js';
-import { Logger } from '../lib/logger.js';
-import { RateLimiter } from '../lib/rate-limiter.js';
+import { openaiClient } from "../services/openai-client";
+import { logger } from "../lib/logger";
+import { rateLimiter } from "../lib/rate-limiter";
 
 export class LocationHandler {
   private openaiClient: OpenAIClient;
