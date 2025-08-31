@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { logger } from "../lib/logger";
+import { Logger } from "../lib/logger";
 
 export interface LocationFact {
   fact: string;
@@ -11,10 +11,7 @@ export class OpenAIClient {
   private client: OpenAI;
 
   constructor(apiKey: string) {
-    this.client = new OpenAI({
-      apiKey,
-      dangerouslyAllowBrowser: false,
-    });
+    this.client = new OpenAI({ apiKey });
   }
 
   async getFactForLocation(latitude: number, longitude: number): Promise<LocationFact> {
@@ -57,21 +54,19 @@ export class OpenAIClient {
       });
 
       return { fact };
-    } catch (error) {
+    } catch (error: any) {
       Logger.error('openai_error', 'Ошибка при запросе к OpenAI', {
         latitude,
         longitude,
-        error: error instanceof Error ? error.message : String(error),
+        error: error?.message || String(error),
       });
 
-      // Обработка различных типов ошибок
-      if (error instanceof OpenAI.APIError) {
-        if (error.status === 429) {
-          throw new Error('Превышен лимит запросов. Попробуйте через минуту.');
-        }
-        if (error.status >= 500) {
-          throw new Error('Сервис OpenAI временно недоступен. Попробуйте позже.');
-        }
+      // Простая обработка ошибок по статусу
+      if (error?.status === 429) {
+        throw new Error('Превышен лимит запросов. Попробуйте через минуту.');
+      }
+      if (error?.status >= 500) {
+        throw new Error('Сервис OpenAI временно недоступен. Попробуйте позже.');
       }
 
       throw new Error('Не удалось получить факт. Попробуйте ещё раз.');
@@ -81,15 +76,15 @@ export class OpenAIClient {
   private buildLocationPrompt(latitude: number, longitude: number): string {
     return `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}. 
     
-    Инструкции:
-    - Отвечай ТОЛЬКО на русском языке
-    - Максимум 1-2 предложения
-    - Расскажи что-то необычное, историческое или географическое
-    - Если знаешь название места - укажи его
-    - Будь краток, но информативен
-    
-    Примеры хороших ответов:
-    "В этом месте в 1812 году проходила армия Наполеона во время отступления из Москвы."
-    "Здесь находится древний курган, датируемый 3-м тысячелетием до нашей эры."`;
+Инструкции:
+- Отвечай ТОЛЬКО на русском языке
+- Максимум 1-2 предложения
+- Расскажи что-то необычное, историческое или географическое
+- Если знаешь название места - укажи его
+- Будь краток, но информативен
+
+Примеры хороших ответов:
+"В этом месте в 1812 году проходила армия Наполеона во время отступления из Москвы."
+"Здесь находится древний курган, датируемый 3-м тысячелетием до нашей эры."`;
   }
 }
