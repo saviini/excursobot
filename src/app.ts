@@ -1,6 +1,6 @@
 import { Bot, Context, session } from 'grammy';
-import { LocationHandler } from '../handlers/location-handler.js';
-import { Logger } from '../lib/logger.js';
+import { handleLocation } from "../handlers/location-handler";
+import { logger } from "../lib/logger";
 
 // Интерфейс для сессии пользователя
 interface SessionData {
