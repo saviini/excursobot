@@ -1,5 +1,5 @@
 import OpenAI from 'openai';
-import { Logger } from '../lib/logger.js';
+import { logger } from "../lib/logger";
 
 export interface LocationFact {
   fact: string;
