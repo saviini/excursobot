@@ -93,4 +93,42 @@ export class LocationHandler {
           error instanceof Error ? error.message : 'Произошла неизвестная ошибка';
         await ctx.reply(`❌ ${errorMessage}`);
 
-        Logger.error('location_processing_error',
+        Logger.error('location_processing_error', 'Ошибка при обработке локации', {
+          chatId,
+          userId,
+          latitude,
+          longitude,
+          error: errorMessage,
+        });
+      }
+    } catch (error) {
+      Logger.error('location_handler_error', 'Критическая ошибка в обработчике локации', {
+        error: error instanceof Error ? error.message : String(error),
+      });
+
+      await ctx.reply('❌ Произошла ошибка. Попробуйте позже.');
+    }
+  }
+
+  private validateCoordinates(latitude: number, longitude: number): boolean {
+    return (
+      typeof latitude === 'number' &&
+      typeof longitude === 'number' &&
+      latitude >= -90 &&
+      latitude <= 90 &&
+      longitude >= -180 &&
+      longitude <= 180 &&
+      !isNaN(latitude) &&
+      !isNaN(longitude)
+    );
+  }
+
+  private buildMapUrl(latitude: number, longitude: number): string {
+    return `https://www.google.com/maps?q=${latitude},${longitude}`;
+  }
+
+  // Метод для очистки rate limiter (можно вызывать периодически)
+  cleanup(): void {
+    this.rateLimiter.cleanup();
+  }
+}
