@@ -11,7 +11,7 @@ dotenv.config();
 const telegramToken = process.env.TELEGRAM_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const webhookUrl = process.env.WEBHOOK_URL;
-const port = parseInt(process.env.PORT || '8080', 10); // всегда 8080, если не указано
+const port = parseInt(process.env.PORT || '8080', 10);
 const env = process.env.NODE_ENV || 'development';
 
 if (!telegramToken) throw new Error('TELEGRAM_TOKEN не установлен');
@@ -19,15 +19,7 @@ if (!openaiApiKey) throw new Error('OPENAI_API_KEY не установлен');
 
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
-// Типизация для Telegram Update
-interface TelegramUpdate {
-  message?: {
-    chat?: { id: number };
-    location?: { latitude: number; longitude: number };
-  };
-}
-
-// Функция получения факта по координатам
+// Функция для получения факта по координатам
 async function getFactForLocation(latitude: number, longitude: number): Promise<string> {
   const prompt = `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}.
 - Отвечай ТОЛЬКО на русском языке
@@ -35,10 +27,8 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
 - Расскажи что-то необычное, историческое или географическое
 - Если знаешь название места - укажи его`;
 
-  // Санитизация
-  const sanitizedPrompt = Buffer.from(prompt, 'utf-8')
-    .toString()
-    .replace(/[^\x00-\x7Fа-яА-ЯёЁ.,:;!?0-9 \n-]/g, '');
+  // Корректная очистка текста для OpenAI
+  const sanitizedPrompt = prompt.replace(/[^\p{L}\p{N}\p{P}\p{Z}]/gu, '');
 
   try {
     const response = await openai.chat.completions.create({
@@ -51,7 +41,7 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
       temperature: 0.7,
     });
 
-    const fact = response.choices?.[0]?.message?.content?.trim();
+    const fact = response.choices[0]?.message?.content?.trim();
     if (!fact) throw new Error('Пустой ответ от OpenAI');
     return fact;
   } catch (err: any) {
@@ -62,37 +52,34 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
 
 // Отправка сообщения в Telegram
 async function sendTelegramMessage(chatId: number, text: string) {
-  try {
-    await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ chat_id: chatId, text }),
-    });
-  } catch (err: any) {
-    Logger.error('telegram_send_error', 'Ошибка при отправке сообщения в Telegram', { error: err.message || String(err), chatId });
-  }
+  await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: chatId, text }),
+  });
 }
 
 // Express сервер
 const app = express();
 app.use(bodyParser.json());
 
+// Вебхук Telegram
 app.post('/webhook', async (req: Request, res: Response) => {
-  const update = req.body as TelegramUpdate;
-
-  const chatId = update.message?.chat?.id;
-  const latitude = update.message?.location?.latitude;
-  const longitude = update.message?.location?.longitude;
-
-  if (!chatId || latitude === undefined || longitude === undefined) {
-    return res.sendStatus(200); // ничего не делаем, если нет нужных данных
-  }
-
-  Logger.info('location_received', 'Получена локация от пользователя', { chatId, latitude, longitude });
-
   try {
+    const update = req.body;
+    const chatId = update.message?.chat?.id;
+    const latitude = update.message?.location?.latitude;
+    const longitude = update.message?.location?.longitude;
+
+    if (!chatId || latitude === undefined || longitude === undefined) {
+      return res.sendStatus(200); // Игнорируем невалидные запросы
+    }
+
+    Logger.info('location_received', 'Получена локация от пользователя', { chatId, latitude, longitude });
+
     const fact = await getFactForLocation(latitude, longitude);
     await sendTelegramMessage(chatId, fact);
+
     res.sendStatus(200);
   } catch (err) {
     Logger.error('location_processing_error', 'Ошибка при обработке локации', { error: err instanceof Error ? err.message : String(err) });
@@ -100,6 +87,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
+// Старт бота
 async function startBot() {
   try {
     if (env === 'production' && webhookUrl) {
@@ -107,17 +95,16 @@ async function startBot() {
       await fetch(`https://api.telegram.org/bot${telegramToken}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: webhookUrl }),
+        body: JSON.stringify({ url: `${webhookUrl}/webhook` }),
       });
-      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl });
+      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl: `${webhookUrl}/webhook` });
     } else {
       Logger.info('app_startup', 'Запуск в режиме polling (локальная разработка)');
       console.log('Polling mode пока не реализован');
     }
 
-    app.listen(port, () => {
-      Logger.info('app_startup', `Сервер запущен на порту ${port}`);
-    });
+    // Сервер слушает порт из окружения (8080 для Railway)
+    app.listen(port, () => Logger.info('app_startup', `Сервер запущен на порту ${port}`));
   } catch (err) {
     Logger.error('app_startup_error', 'Ошибка запуска бота', { error: err instanceof Error ? err.message : String(err) });
     process.exit(1);
