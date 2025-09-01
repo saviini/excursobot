@@ -1,7 +1,7 @@
 # ---------- Stage 1: Build ----------
 FROM node:18-slim AS builder
 
-# Устанавливаем bash, git и другие утилиты
+# Устанавливаем bash, git и утилиты
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     git \
@@ -9,16 +9,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Копируем package.json и package-lock.json отдельно для кэширования
+# Кэширование зависимостей
 COPY package*.json ./
-
-# Устанавливаем все зависимости (dev + prod) для сборки
 RUN npm install
 
-# Копируем весь исходный код
+# Копируем весь исходный код и билдим TypeScript
 COPY . .
-
-# Собираем TypeScript в dist/
 RUN npm run build
 
 # ---------- Stage 2: Runtime ----------
@@ -26,13 +22,11 @@ FROM node:18-slim AS runner
 
 WORKDIR /app
 
-# Копируем package.json и package-lock.json
+# Только production-зависимости
 COPY package*.json ./
-
-# Устанавливаем только production-зависимости
 RUN npm install --omit=dev
 
-# Копируем собранный JS-код из builder
+# Копируем собранный код
 COPY --from=builder /app/dist ./dist
 
 # Открываем порт 8080
