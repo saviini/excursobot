@@ -7,11 +7,11 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Копируем весь код и собираем TypeScript
+# Копируем весь код
 COPY . .
 
-# Сборка TS с указанием модуля CommonJS и output в dist
-RUN npx tsc --module commonjs --outDir dist --esModuleInterop
+# Сборка TypeScript в CommonJS
+RUN npx tsc
 
 # ---------- Stage 2: Runtime ----------
 FROM node:18-slim AS runner
@@ -22,11 +22,12 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Копируем собранный код из билд-стадии
+# Копируем собранный код из builder
 COPY --from=builder /app/dist ./dist
 
-# Устанавливаем порт для Railway
+# Порт для Railway
 ENV PORT=8080
 EXPOSE 8080
 
+# Запуск приложения
 CMD ["node", "dist/index.js"]
