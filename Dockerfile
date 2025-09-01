@@ -1,7 +1,7 @@
 # ---------- Stage 1: Build ----------
 FROM node:18-slim AS builder
 
-# Устанавливаем bash и git
+# Устанавливаем bash, git и утилиты
 RUN apt-get update && apt-get install -y --no-install-recommends \
     bash \
     git \
@@ -13,10 +13,8 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm install
 
-# Копируем весь исходный код
+# Копируем весь исходный код и билдим TypeScript
 COPY . .
-
-# Собираем TypeScript в CommonJS (dist)
 RUN npx tsc
 
 # ---------- Stage 2: Runtime ----------
@@ -24,14 +22,14 @@ FROM node:18-slim AS runner
 
 WORKDIR /app
 
-# Копируем package.json и устанавливаем только production-зависимости
+# Только production-зависимости
 COPY package*.json ./
 RUN npm install --omit=dev
 
-# Копируем собранный код из builder
+# Копируем собранный код
 COPY --from=builder /app/dist ./dist
 
-# Открываем порт
+# Устанавливаем порт
 ENV PORT=8080
 EXPOSE 8080
 
