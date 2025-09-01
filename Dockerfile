@@ -9,7 +9,9 @@ RUN npm install
 
 # Копируем весь код и собираем TypeScript
 COPY . .
-RUN npx tsc
+
+# Сборка TS с указанием модуля CommonJS и output в dist
+RUN npx tsc --module commonjs --outDir dist --esModuleInterop
 
 # ---------- Stage 2: Runtime ----------
 FROM node:18-slim AS runner
