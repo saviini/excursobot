@@ -1,8 +1,11 @@
 # ---------- Stage 1: Build ----------
-FROM node:18-alpine AS builder
+FROM node:18-slim AS builder
 
-# Устанавливаем bash и другие утилиты
-RUN apk add --no-cache bash git
+# Устанавливаем bash, git и другие утилиты
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    bash \
+    git \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -19,7 +22,7 @@ COPY . .
 RUN npm run build
 
 # ---------- Stage 2: Runtime ----------
-FROM node:18-alpine AS runner
+FROM node:18-slim AS runner
 
 WORKDIR /app
 
@@ -31,10 +34,6 @@ RUN npm install --omit=dev
 
 # Копируем собранный JS-код из builder
 COPY --from=builder /app/dist ./dist
-
-# Для ESM-совместимости добавляем package.json с типом модуля
-# (если у тебя еще нет "type": "module" в package.json)
-# COPY package.json ./package.json
 
 # Открываем порт
 EXPOSE 3000
