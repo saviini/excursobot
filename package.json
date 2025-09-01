@@ -3,7 +3,6 @@
   "version": "1.0.0",
   "description": "MVP Telegram bot that generates interesting facts about locations using OpenAI",
   "main": "dist/index.js",
-  "type": "module",
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
