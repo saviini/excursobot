@@ -35,8 +35,8 @@ RUN npm install --omit=dev
 # Копируем собранный JS-код из builder
 COPY --from=builder /app/dist ./dist
 
-# Открываем порт
-EXPOSE 3000
+# Открываем порт 8080
+EXPOSE 8080
 
 # Запуск приложения
 CMD ["node", "dist/index.js"]
