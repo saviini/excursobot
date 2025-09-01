@@ -22,12 +22,11 @@ export class OpenAIClient {
         model: "gpt-4o-mini",
       });
 
-      // Формируем prompt и нормализуем
-      let prompt = this.buildLocationPrompt(latitude, longitude);
-      prompt = this.sanitizePrompt(prompt);
+      const prompt = this.buildLocationPrompt(latitude, longitude);
+      const sanitizedPrompt = this.sanitizePrompt(prompt);
 
       Logger.info("openai_prompt", "Сформированный prompt для OpenAI", {
-        preview: prompt.slice(0, 200), // логируем первые 200 символов
+        preview: sanitizedPrompt.slice(0, 200),
       });
 
       const response = await this.client.chat.completions.create({
@@ -40,7 +39,7 @@ export class OpenAIClient {
           },
           {
             role: "user",
-            content: String(prompt),
+            content: sanitizedPrompt,
           },
         ],
         max_tokens: 150,
@@ -79,7 +78,7 @@ export class OpenAIClient {
   }
 
   private buildLocationPrompt(latitude: number, longitude: number): string {
-    return `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}. 
+    return `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}.
     
 Инструкции:
 - Отвечай ТОЛЬКО на русском языке
@@ -93,10 +92,9 @@ export class OpenAIClient {
 "Здесь находится древний курган, датируемый 3-м тысячелетием до нашей эры."`;
   }
 
-  /** Чистим строку от символов, которые не умеет кодировать OpenAI SDK */
-  private sanitizePrompt(input: string): string {
-    return String(input)
-      .replace(/[^\x00-\x7Fа-яА-ЯёЁ\s.,:;!?'"()\[\]\-0-9]/g, "") // убираем символы вне utf8
-      .trim();
+  private sanitizePrompt(prompt: string): string {
+    return Buffer.from(prompt, "utf-8")
+      .toString()
+      .replace(/[^\x00-\x7Fа-яА-ЯёЁ.,:;!?0-9 \n-]/g, "");
   }
 }
