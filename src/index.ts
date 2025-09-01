@@ -12,7 +12,7 @@ async function main(): Promise<void> {
     const openaiApiKey = process.env.OPENAI_API_KEY;
     const webhookUrl = process.env.WEBHOOK_URL;
     const port = parseInt(process.env.PORT || '3000');
-    const env = process.env.ENV || 'development';
+    const env = process.env.NODE_ENV || 'development'; // ✅ используем NODE_ENV
 
     Logger.info('env_check', 'Проверка переменных окружения', {
       hasTelegramToken: !!telegramToken,
@@ -54,12 +54,12 @@ async function main(): Promise<void> {
       process.exit(0);
     });
 
-    // Запускаем бота в зависимости от конфигурации
-    if (webhookUrl && env === 'production') {
+    // 🚀 Запуск бота
+    if (env === 'production' && webhookUrl) {
       Logger.info('app_startup', 'Запуск в режиме webhook', { webhookUrl, port });
       await bot.startWebhook(port, webhookUrl);
     } else {
-      Logger.info('app_startup', 'Запуск в режиме polling');
+      Logger.info('app_startup', 'Запуск в режиме polling (локальная разработка)');
       await bot.startPolling();
     }
 
