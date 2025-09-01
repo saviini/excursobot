@@ -11,15 +11,15 @@ dotenv.config();
 const telegramToken = process.env.TELEGRAM_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const webhookUrl = process.env.WEBHOOK_URL;
-const port = parseInt(process.env.PORT || '8080', 10);
+const port = parseInt(process.env.PORT || '8080', 10); // всегда 8080 на Railway
 const env = process.env.NODE_ENV || 'development';
 
 if (!telegramToken) throw new Error('TELEGRAM_TOKEN не установлен');
 if (!openaiApiKey) throw new Error('OPENAI_API_KEY не установлен');
+if (!webhookUrl) Logger.warn('WEBHOOK_URL не установлен, нужно для production');
 
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
-// Функция для получения факта по координатам
 async function getFactForLocation(latitude: number, longitude: number): Promise<string> {
   const prompt = `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}.
 - Отвечай ТОЛЬКО на русском языке
@@ -27,15 +27,15 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
 - Расскажи что-то необычное, историческое или географическое
 - Если знаешь название места - укажи его`;
 
-  // Корректная очистка текста для OpenAI
-  const sanitizedPrompt = prompt.replace(/[^\p{L}\p{N}\p{P}\p{Z}]/gu, '');
-
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'Ты - эксперт по географии и истории. Дай один интересный факт, 1-2 предложения, только на русском.' },
-        { role: 'user', content: sanitizedPrompt },
+        {
+          role: 'system',
+          content: 'Ты - эксперт по географии и истории. Дай один интересный факт, 1-2 предложения, только на русском.',
+        },
+        { role: 'user', content: prompt },
       ],
       max_tokens: 150,
       temperature: 0.7,
@@ -50,20 +50,22 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
   }
 }
 
-// Отправка сообщения в Telegram
 async function sendTelegramMessage(chatId: number, text: string) {
-  await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text }),
-  });
+  try {
+    await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chatId, text }),
+    });
+  } catch (err: any) {
+    Logger.error('telegram_error', 'Не удалось отправить сообщение', { error: err.message || String(err), chatId });
+  }
 }
 
-// Express сервер
+// Express сервер для вебхука
 const app = express();
 app.use(bodyParser.json());
 
-// Вебхук Telegram
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const update = req.body;
@@ -72,7 +74,7 @@ app.post('/webhook', async (req: Request, res: Response) => {
     const longitude = update.message?.location?.longitude;
 
     if (!chatId || latitude === undefined || longitude === undefined) {
-      return res.sendStatus(200); // Игнорируем невалидные запросы
+      return res.sendStatus(200);
     }
 
     Logger.info('location_received', 'Получена локация от пользователя', { chatId, latitude, longitude });
@@ -87,23 +89,24 @@ app.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
-// Старт бота
 async function startBot() {
   try {
     if (env === 'production' && webhookUrl) {
-      // Устанавливаем вебхук
+      const webhookPath = '/webhook';
+      const fullWebhookUrl = webhookUrl.endsWith(webhookPath) ? webhookUrl : `${webhookUrl}${webhookPath}`;
+
+      // Устанавливаем вебхук один раз
       await fetch(`https://api.telegram.org/bot${telegramToken}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: `${webhookUrl}/webhook` }),
+        body: JSON.stringify({ url: fullWebhookUrl }),
       });
-      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl: `${webhookUrl}/webhook` });
+      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl: fullWebhookUrl });
     } else {
       Logger.info('app_startup', 'Запуск в режиме polling (локальная разработка)');
       console.log('Polling mode пока не реализован');
     }
 
-    // Сервер слушает порт из окружения (8080 для Railway)
     app.listen(port, () => Logger.info('app_startup', `Сервер запущен на порту ${port}`));
   } catch (err) {
     Logger.error('app_startup_error', 'Ошибка запуска бота', { error: err instanceof Error ? err.message : String(err) });
