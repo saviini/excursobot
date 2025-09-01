@@ -23,10 +23,9 @@ export class OpenAIClient {
       });
 
       const prompt = this.buildLocationPrompt(latitude, longitude);
-      const sanitizedPrompt = this.sanitizePrompt(prompt);
 
       Logger.info("openai_prompt", "Сформированный prompt для OpenAI", {
-        preview: sanitizedPrompt.slice(0, 200),
+        preview: prompt.slice(0, 200),
       });
 
       const response = await this.client.chat.completions.create({
@@ -39,7 +38,7 @@ export class OpenAIClient {
           },
           {
             role: "user",
-            content: sanitizedPrompt,
+            content: prompt,
           },
         ],
         max_tokens: 150,
@@ -90,11 +89,5 @@ export class OpenAIClient {
 Примеры хороших ответов:
 "В этом месте в 1812 году проходила армия Наполеона во время отступления из Москвы."
 "Здесь находится древний курган, датируемый 3-м тысячелетием до нашей эры."`;
-  }
-
-  private sanitizePrompt(prompt: string): string {
-    return Buffer.from(prompt, "utf-8")
-      .toString()
-      .replace(/[^\x00-\x7Fа-яА-ЯёЁ.,:;!?0-9 \n-]/g, "");
   }
 }
