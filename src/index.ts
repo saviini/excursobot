@@ -11,12 +11,11 @@ dotenv.config();
 const telegramToken = process.env.TELEGRAM_TOKEN;
 const openaiApiKey = process.env.OPENAI_API_KEY;
 const webhookUrl = process.env.WEBHOOK_URL;
-const port = parseInt(process.env.PORT || '8080', 10); // всегда 8080 на Railway
+const port = parseInt(process.env.PORT || '8080', 10);
 const env = process.env.NODE_ENV || 'development';
 
 if (!telegramToken) throw new Error('TELEGRAM_TOKEN не установлен');
 if (!openaiApiKey) throw new Error('OPENAI_API_KEY не установлен');
-if (!webhookUrl) Logger.warn('WEBHOOK_URL не установлен, нужно для production');
 
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
@@ -33,7 +32,8 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
       messages: [
         {
           role: 'system',
-          content: 'Ты - эксперт по географии и истории. Дай один интересный факт, 1-2 предложения, только на русском.',
+          content:
+            'Ты - эксперт по географии и истории. Дай один интересный факт, 1-2 предложения, только на русском.',
         },
         { role: 'user', content: prompt },
       ],
@@ -41,11 +41,12 @@ async function getFactForLocation(latitude: number, longitude: number): Promise<
       temperature: 0.7,
     });
 
-    const fact = response.choices[0]?.message?.content?.trim();
+    const fact = response.choices?.[0]?.message?.content?.trim();
     if (!fact) throw new Error('Пустой ответ от OpenAI');
     return fact;
-  } catch (err: any) {
-    Logger.error('openai_error', 'Ошибка при запросе к OpenAI', { error: err.message || String(err) });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    Logger.error('openai_error', 'Ошибка при запросе к OpenAI', { error: errorMessage });
     throw new Error('Не удалось получить факт. Попробуйте ещё раз.');
   }
 }
@@ -57,12 +58,12 @@ async function sendTelegramMessage(chatId: number, text: string) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ chat_id: chatId, text }),
     });
-  } catch (err: any) {
-    Logger.error('telegram_error', 'Не удалось отправить сообщение', { error: err.message || String(err), chatId });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    Logger.error('telegram_error', 'Ошибка при отправке сообщения в Telegram', { error: errorMessage, chatId });
   }
 }
 
-// Express сервер для вебхука
 const app = express();
 app.use(bodyParser.json());
 
@@ -83,8 +84,9 @@ app.post('/webhook', async (req: Request, res: Response) => {
     await sendTelegramMessage(chatId, fact);
 
     res.sendStatus(200);
-  } catch (err) {
-    Logger.error('location_processing_error', 'Ошибка при обработке локации', { error: err instanceof Error ? err.message : String(err) });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    Logger.error('location_processing_error', 'Ошибка при обработке локации', { error: errorMessage });
     res.sendStatus(500);
   }
 });
@@ -92,24 +94,22 @@ app.post('/webhook', async (req: Request, res: Response) => {
 async function startBot() {
   try {
     if (env === 'production' && webhookUrl) {
-      const webhookPath = '/webhook';
-      const fullWebhookUrl = webhookUrl.endsWith(webhookPath) ? webhookUrl : `${webhookUrl}${webhookPath}`;
-
-      // Устанавливаем вебхук один раз
+      const webhookEndpoint = webhookUrl.endsWith('/webhook') ? webhookUrl : `${webhookUrl}/webhook`;
       await fetch(`https://api.telegram.org/bot${telegramToken}/setWebhook`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: fullWebhookUrl }),
+        body: JSON.stringify({ url: webhookEndpoint }),
       });
-      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl: fullWebhookUrl });
+      Logger.info('bot_startup', 'Вебхук установлен', { webhookUrl: webhookEndpoint });
     } else {
       Logger.info('app_startup', 'Запуск в режиме polling (локальная разработка)');
       console.log('Polling mode пока не реализован');
     }
 
     app.listen(port, () => Logger.info('app_startup', `Сервер запущен на порту ${port}`));
-  } catch (err) {
-    Logger.error('app_startup_error', 'Ошибка запуска бота', { error: err instanceof Error ? err.message : String(err) });
+  } catch (err: unknown) {
+    const errorMessage = err instanceof Error ? err.message : String(err);
+    Logger.error('app_startup_error', 'Ошибка запуска бота', { error: errorMessage });
     process.exit(1);
   }
 }
