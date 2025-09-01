@@ -1,48 +1,41 @@
-import dotenv from 'dotenv';
+import 'dotenv/config';
 import express, { Request, Response } from 'express';
 import bodyParser from 'body-parser';
-import fetch from 'node-fetch';
-import { Logger } from './lib/logger';
+import { Logger } from './lib/logger.js';
 import OpenAI from 'openai';
 
-// Загружаем переменные окружения
-dotenv.config();
-
-const telegramToken = process.env.TELEGRAM_TOKEN!;
-const openaiApiKey = process.env.OPENAI_API_KEY!;
-const port = process.env.PORT ? parseInt(process.env.PORT) : 8080;
+const telegramToken = process.env.TELEGRAM_TOKEN;
+const openaiApiKey = process.env.OPENAI_API_KEY;
+const port = Number(process.env.PORT) || 8080;
 const webhookUrl = process.env.WEBHOOK_URL;
 const env = process.env.NODE_ENV || 'development';
 
 const openai = new OpenAI({ apiKey: openaiApiKey });
 
-// Получение факта по координатам
 async function getFactForLocation(latitude: number, longitude: number): Promise<string> {
   const prompt = `Расскажи один интересный факт о месте с координатами ${latitude}, ${longitude}.
-- Отвечай ТОЛЬКО на русском языке
-- Максимум 1-2 предложения
-- Расскажи что-то необычное, историческое или географическое
-- Если знаешь название места - укажи его`;
+- Отвечай только на русском языке
+- 1-2 предложения
+- Уникальный исторический, географический или необычный факт`;
 
   try {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
-        { role: 'system', content: 'Ты - эксперт по географии и истории. Дай один интересный факт, 1-2 предложения, только на русском.' },
+        { role: 'system', content: 'Ты - эксперт по географии и истории. Дай один интересный факт 1-2 предложения, только на русском.' },
         { role: 'user', content: prompt }
       ],
       max_tokens: 150
     });
 
-    return response.choices[0].message?.content || 'Факт не найден';
+    return response.choices?.[0]?.message?.content ?? 'Нет данных';
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
-    Logger.error('openai_error', 'Ошибка при запросе к OpenAI', { error: errorMessage });
+    Logger.error('openai_error', 'Ошибка при запросе OpenAI', { error: errorMessage });
     return 'Ошибка при получении факта';
   }
 }
 
-// Отправка сообщения в Telegram
 async function sendTelegramMessage(chatId: number, text: string) {
   try {
     await fetch(`https://api.telegram.org/bot${telegramToken}/sendMessage`, {
@@ -56,23 +49,23 @@ async function sendTelegramMessage(chatId: number, text: string) {
   }
 }
 
-// Express сервер
 const app = express();
 app.use(bodyParser.json());
 
-// Вебхук
 app.post('/webhook', async (req: Request, res: Response) => {
   try {
     const update = req.body;
-    const chatId = update.message?.chat?.id;
-    const latitude = update.message?.location?.latitude;
-    const longitude = update.message?.location?.longitude;
+    const chatId = update?.message?.chat?.id;
+    const latitude = update?.message?.location?.latitude;
+    const longitude = update?.message?.location?.longitude;
 
-    if (chatId && latitude != null && longitude != null) {
-      const fact = await getFactForLocation(latitude, longitude);
-      await sendTelegramMessage(chatId, fact);
+    if (!chatId || latitude == null || longitude == null) {
+      res.sendStatus(400);
+      return;
     }
 
+    const fact = await getFactForLocation(latitude, longitude);
+    await sendTelegramMessage(chatId, fact);
     res.sendStatus(200);
   } catch (err: unknown) {
     const errorMessage = err instanceof Error ? err.message : String(err);
@@ -81,7 +74,6 @@ app.post('/webhook', async (req: Request, res: Response) => {
   }
 });
 
-// Запуск бота
 async function startBot() {
   try {
     if (env === 'production' && webhookUrl) {
